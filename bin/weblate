@@ -1,0 +1,10 @@
+#!/usr/bin/env php
+<?php
+require 'vendor/autoload.php';
+
+use Symfony\Component\Console\Application;
+use Kwf\Weblate\DownloadTranslationsScript;
+
+$application = new Application('kwf-weblate', '0.1');
+$application->add(new DownloadTranslationsScript);
+$application->run();
