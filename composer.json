@@ -1,0 +1,21 @@
+{
+    "name": "koala-framework/kwf-weblate",
+    "description": "",
+    "homepage": "https://github.com/koala-framework/kwf-weblate",
+    "license": "BSD-2-Clause",
+    "type": "composer-plugin",
+    "require": {
+        "composer-plugin-api": "^1.0",
+        "symfony/console": "~2.6",
+        "psr/log": "~1.0"
+    },
+    "extra": {
+        "class": "Kwf\\Weblate\\DownloadPlugin"
+    },
+    "autoload": {
+        "psr-0": { "Kwf\\Weblate\\": "" }
+    },
+    "bin": ["bin/weblate"],
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
