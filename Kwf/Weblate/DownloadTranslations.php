@@ -2,6 +2,7 @@
 namespace Kwf\Weblate;
 use Psr\Log\LoggerInterface;
 use Kwf\Weblate\Config\ConfigInterface;
+use ZipArchive;
 
 class DownloadTranslations
 {
@@ -30,26 +31,31 @@ class DownloadTranslations
         return $files;
     }
 
-    private function _getTempFolder($account = null, $project = null)
+    private function _getTempFolder($project = null)
     {
         $path = sys_get_temp_dir().'/'.DownloadTranslations::$TEMP_TRL_FOLDER;
-        if ($account && $project) {
-            $path .= "/$account/$project";
+        if ($project) {
+            $path .= "/$project";
         }
         return $path;
     }
 
-    private function _getLastUpdateFile($account, $project)
-    {
-        return $this->_getTempFolder($account, $project).'/'.DownloadTranslations::$TEMP_LAST_UPDATE_FILE;
+    private function _getTranslationsTempFolder($project, $component) {
+        $tmpFolder = $this->_getTempFolder($project);
+        return $tmpFolder . '/translations/' . $project . '/' . $component;
     }
 
-    private function _checkDownloadTrlFiles($account, $project)
+    private function _getLastUpdateFile($translationTmpFolder)
+    {
+        return $translationTmpFolder.'/'.DownloadTranslations::$TEMP_LAST_UPDATE_FILE;
+    }
+
+    private function _checkDownloadTrlFiles($project)
     {
         if ($this->_updateDownloadedTrlFiles) return true;
         $downloadFiles = true;
-        if (file_exists($this->_getLastUpdateFile($account, $project))) {
-            $lastDownloadTimestamp = strtotime(substr(file_get_contents($this->_getLastUpdateFile($account, $project)), 0, strlen('HHHH-MM-DD')));
+        if (file_exists($this->_getLastUpdateFile($project))) {
+            $lastDownloadTimestamp = strtotime(substr(file_get_contents($this->_getLastUpdateFile($project)), 0, strlen('HHHH-MM-DD')));
             $downloadFiles = strtotime('today') > $lastDownloadTimestamp;
         }
         return $downloadFiles;
@@ -66,104 +72,37 @@ class DownloadTranslations
             if (!isset($composerConfig->extra->{'kwf-weblate'})) continue;
 
             $kwfWeblate = $composerConfig->extra->{'kwf-weblate'};
-            $accountName = strtolower($kwfWeblate->account);
             $projectName = strtolower($kwfWeblate->project);
-            $trlTempDir = $this->_getTempFolder($accountName, $projectName);
-            if ($this->_checkDownloadTrlFiles($accountName, $projectName)) {
+            $componentName = strtolower($kwfWeblate->component);
+
+            $trlTempDir = $this->_getTempFolder($projectName);
+            if ($this->_checkDownloadTrlFiles($projectName)) {
                 if (!file_exists($trlTempDir)) {
                     mkdir($trlTempDir, 0777, true);//write and read for everyone
                 }
-                $this->_logger->warning("Checking/Downloading resources of {$kwfWeblate->account}/{$kwfWeblate->project}");
-                $params = array( 'auth_token' => $this->_config->getApiToken() );
-                d("weblate");
-                $export = $this->_triggerAndWaitForExport($accountName, $projectName, $params);
-                foreach ($export['resourceExports'] as $resource) {
-                    $poFilePath = $trlTempDir.'/'.$resource['filePath'];
-                    if ($resource['status'] !== 'SUCCESS') {
-                        $this->_logger->alert("Export for {$resource['filePath']} failed...");
-                    } else {
-                        $this->_logger->notice("Downloading {$resource['filePath']}");
-                        $file = $this->_getData($resource['downloadUrl']);
-                        if ($file === false) {
-                            throw new WeblateException('Url provided from Weblate not working: '.$url);
-                        }
-                        if (strpos($file, '"Content-Type: text/plain; charset=UTF-8"') === false) {
-                            $poHeader = "msgid \"\"\n"
-                                ."msgstr \"\"\n"
-                                ."\"Content-Type: text/plain; charset=UTF-8\"\n\n";
-                            $file = $poHeader.$file;
-                        }
-                        file_put_contents($poFilePath, $file);
-                    }
+
+                $this->_logger->notice("Downloading translations for " . $projectName . '/' . $componentName);
+                $triggerCreateExportUrl = "https://weblate.porscheinformatik.com/api/components/" . $projectName . "/" . $componentName . "/file/";
+                $export = $this->_getData($triggerCreateExportUrl);
+                file_put_contents($trlTempDir.'/translations.zip', $export);
+                $zip = new ZipArchive;
+                $res = $zip->open($trlTempDir.'/translations.zip');
+                if ($res === TRUE) {
+                    $zip->extractTo($trlTempDir.'/translations');
+                    $zip->close();
+                } else {
+                    throw new WeblateException('Unzip of translation failed in ' . $trlTempDir);
                 }
-                file_put_contents($this->_getLastUpdateFile($accountName, $projectName), date('Y-m-d H:i:s'));
+                file_put_contents($this->_getLastUpdateFile($this->_getTranslationsTempFolder($projectName, $componentName)), date('Y-m-d H:i:s'));
             }
             if (!file_exists(dirname($composerJsonFilePath).'/trl/')) {
                 mkdir(dirname($composerJsonFilePath).'/trl/', 0777, true);//write and read for everyone
             }
-            foreach (scandir($trlTempDir) as $file) {
+            foreach (scandir($this->_getTranslationsTempFolder($projectName, $componentName)) as $file) {
                 if (substr($file, 0, 1) === '.') continue;
-                copy($trlTempDir.'/'.$file, dirname($composerJsonFilePath).'/trl/'.basename($file));
+                copy($this->_getTranslationsTempFolder($projectName, $componentName).'/'.$file, dirname($composerJsonFilePath).'/trl/'.basename($file));
             }
         }
-    }
-
-    private function _triggerAndWaitForExport($accountName, $projectName, $params)
-    {
-        $triggerCreateExportUrl = "https://weblate.porscheinformatik.com/api"
-            ."/translations/$projectName/exports"
-            ."?".http_build_query($params);
-        $export = json_decode($this->_postData($triggerCreateExportUrl), true);
-
-        while(in_array($export['status'], array('PROCESSING', 'SCHEDULED', 'NEW'))) {
-            $getExportUrl = "https://api.weblate.com/v1/$accountName"
-                ."/projects/$projectName/exports/{$export['id']}"
-                ."?".http_build_query($params);
-            sleep(1);
-            $export = json_decode($this->_getData($getExportUrl), true);
-        }
-        if ($export['status'] !== 'SUCCESS') {
-
-            if ($export['status'] === 'ERROR') {
-                $this->_logger->critical("Post to start export failed: " . $export['errorDetails']);
-                throw new WeblateException("Post to start weblate export failed!");
-            } else {
-                throw new WeblateException("Unexpected status from weblate export-api");
-            }
-        }
-        return $export;
-    }
-
-    private function _postData($url)
-    {
-        $this->_logger->debug("posting (POST $url)");
-        $ch = curl_init();
-        curl_setopt_array($ch, array(
-            CURLOPT_URL => $url,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING => '',
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 0,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => 'POST',
-            CURLOPT_CONNECTTIMEOUT => 5
-        ));
-
-        $count = 0;
-        $response = false;
-        while ($response === false && $count < 5) {
-            if ($count != 0) {
-                sleep(5);
-                $this->_logger->warning("retry posting... (POST {$url})");
-            }
-            $response = curl_exec($ch);
-            $count++;
-        }
-        if (curl_getinfo($ch, CURLINFO_HTTP_CODE) != 200) {
-            throw new WeblateException('Request to '.$url.' failed with '.curl_getinfo($ch, CURLINFO_HTTP_CODE).': '.$response);
-        }
-        return $response;
     }
 
     private function _getData($url)
@@ -173,6 +112,7 @@ class DownloadTranslations
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array('Authorization: Bearer ' . $this->_config->getApiToken()));
 
         $count = 0;
         $response = false;
