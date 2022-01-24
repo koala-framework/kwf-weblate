@@ -8,3 +8,4 @@ It should look like this:
     {
         "apiToken": "yourApiKey"
     }
+
