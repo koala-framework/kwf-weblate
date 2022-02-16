@@ -112,7 +112,7 @@ class DownloadTranslations
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array('Authorization: Bearer ' . $this->_config->getApiToken()));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array('Authorization: Token ' . $this->_config->getApiToken()));
 
         $count = 0;
         $response = false;
