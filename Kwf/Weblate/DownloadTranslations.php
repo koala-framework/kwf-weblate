@@ -75,7 +75,7 @@ class DownloadTranslations
             $projectName = strtolower($kwfWeblate->project);
             $componentName = strtolower($kwfWeblate->component);
             $fallBackLanguage = (isset($kwfWeblate->fallback) ? strtolower($kwfWeblate->fallback) : false);
-d($fallBackLanguage);
+
             $trlTempDir = $this->_getTempFolder($projectName);
             if ($this->_checkDownloadTrlFiles($projectName)) {
                 if (!file_exists($trlTempDir)) {
@@ -121,9 +121,20 @@ d($fallBackLanguage);
                 . 'Fallback language is set in composer.json/extra.kwf-weblate.fallback');
         }
 
+        $originTrl = TrlParser::parseTrlFile($originFile);
+
+        var_dump($originTrl);
+        die();
+
         foreach (scandir($directory) as $file) {
             echo $file . "\n";
+            $trl = TrlParser::parseTrlFile($directory . $file);
         }
+    }
+
+    private function _applyFallbackTrl($sourceTrl, $targetTrl)
+    {
+
     }
 
     private function _getData($url)
