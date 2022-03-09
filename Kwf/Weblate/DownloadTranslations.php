@@ -74,7 +74,8 @@ class DownloadTranslations
             $kwfWeblate = $composerConfig->extra->{'kwf-weblate'};
             $projectName = strtolower($kwfWeblate->project);
             $componentName = strtolower($kwfWeblate->component);
-
+            $fallBackLanguage = (isset($kwfWeblate->fallback) ? strtolower($kwfWeblate->fallback) : false);
+d($fallBackLanguage);
             $trlTempDir = $this->_getTempFolder($projectName);
             if ($this->_checkDownloadTrlFiles($projectName)) {
                 if (!file_exists($trlTempDir)) {
@@ -95,13 +96,33 @@ class DownloadTranslations
                 }
                 file_put_contents($this->_getLastUpdateFile($this->_getTranslationsTempFolder($projectName, $componentName)), date('Y-m-d H:i:s'));
             }
+
             if (!file_exists(dirname($composerJsonFilePath).'/trl/')) {
                 mkdir(dirname($composerJsonFilePath).'/trl/', 0777, true);//write and read for everyone
             }
+
             foreach (scandir($this->_getTranslationsTempFolder($projectName, $componentName)) as $file) {
                 if (substr($file, 0, 1) === '.') continue;
                 copy($this->_getTranslationsTempFolder($projectName, $componentName).'/'.$file, dirname($composerJsonFilePath).'/trl/'.basename($file));
             }
+
+            if ($fallBackLanguage !== false) {
+                $this->_applyTranslationFallback(dirname($composerJsonFilePath).'/trl/', $fallBackLanguage);
+            }
+        }
+    }
+
+    private function _applyTranslationFallback($directory, $language)
+    {
+        $this->_logger->info('Applying fallback language (' . $language . ') to downloaded trl resources.');
+        $originFile = $directory . $language . '.po';
+        if (!file_exists($originFile)) {
+            throw new WeblateException('Could not find fallback language file: ' . $originFile . "\n"
+                . 'Fallback language is set in composer.json/extra.kwf-weblate.fallback');
+        }
+
+        foreach (scandir($directory) as $file) {
+            echo $file . "\n";
         }
     }
 
