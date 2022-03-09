@@ -123,18 +123,15 @@ class DownloadTranslations
 
         $originTrl = TrlParser::parseTrlFile($originFile);
 
-        var_dump($originTrl);
-        die();
-
         foreach (scandir($directory) as $file) {
-            echo $file . "\n";
-            $trl = TrlParser::parseTrlFile($directory . $file);
+            if (substr($file, 0, 1) === '.') continue;
+            if ($file == $language . '.po') continue;
+
+            $path = $directory . $file;
+            $trl = TrlParser::parseTrlFile($path);
+            $trl->applyFallback($originTrl);
+            file_put_contents($path, $trl->exportAsPo());
         }
-    }
-
-    private function _applyFallbackTrl($sourceTrl, $targetTrl)
-    {
-
     }
 
     private function _getData($url)

@@ -13,16 +13,40 @@ class TrlParser
      */
     public $entries = array();
 
-    public function toString()
+    /**
+     * @param TrlParser $trl source trl parser (fallback origin file)
+     * @return TrlParser
+     */
+    public function applyFallback(TrlParser $trl)
+    {
+        foreach ($trl->entries as $key => $entry) {
+            if (!isset($this->entries[$key])) {
+                $this->entries[$key] = $entry;
+            }
+        }
+        return $this;
+    }
+
+    /**
+     * Renders down entry set to a .po file format
+     * @return string
+     */
+    public function exportAsPo()
     {
         $ret = '';
         foreach ($this->entries as $key => $entry) {
             $ret .= 'msgid ' . $key . "\n";
-            $ret .= 'msgstr "' . $entry['msgstr'] . '"' . "\n\n";
+            $ret .= 'msgstr ' . $entry['msgstr'] . "\n\n";
         }
         return $ret;
     }
 
+    /**
+     * Parses given .po file
+     * @param $file
+     * @return TrlParser
+     * @throws \Exception Parse errors are thrown (corrupt files will be rejected)
+     */
     public static function parseTrlFile($file)
     {
         $trl = new TrlParser();
@@ -34,12 +58,13 @@ class TrlParser
             try {
                 $line = $lines[$cursor];
                 if (strpos($line, 'msgid') === 0) {
-                    $msgid = explode(' ', $line)[1];
+                    $msgid = substr($line, 6);
                     $line = $lines[++$cursor];
                     if (strpos($line, 'msgstr') === 0) {
-                        $msgstr = explode(' ', $line)[1];
+                        $msgstr = substr($line, 7);
                         $trl->entries[$msgid] = array(
-                            $msgstr => $msgstr
+                            'msgid' => $msgid,
+                            'msgstr' => $msgstr
                         );
                     }
                 }
