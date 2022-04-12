@@ -2,6 +2,11 @@
 namespace Kwf\Weblate;
 use Psr\Log\LoggerInterface;
 use Kwf\Weblate\Config\ConfigInterface;
+use Sepia\PoParser\Catalog\Catalog;
+use Sepia\PoParser\Catalog\Entry;
+use Sepia\PoParser\Parser;
+use Sepia\PoParser\PoCompiler;
+use Sepia\PoParser\SourceHandler\FileSystem;
 use ZipArchive;
 
 class DownloadTranslations
@@ -121,17 +126,30 @@ class DownloadTranslations
                 . 'Fallback language is set in composer.json/extra.kwf-weblate.fallback');
         }
 
-        $originTrl = TrlParser::parseTrlFile($originFile);
+        //$originTrl = TrlParser::parseTrlFile($originFile);
+        $origin = Parser::parseFile($originFile);
 
         foreach (scandir($directory) as $file) {
             if (substr($file, 0, 1) === '.') continue;
             if ($file == $language . '.po') continue;
 
             $path = $directory . $file;
-            $trl = TrlParser::parseTrlFile($path);
-            $trl->applyFallback($originTrl);
-            file_put_contents($path, $trl->exportAsPo());
+            $handler = new FileSystem($path);
+            $trl = new Parser($handler);
+            $trl = $this->applyFallback($origin, $trl);
+            $compiler = new PoCompiler();
+            $handler->save($compiler->compile($trl));
         }
+    }
+
+    private function _applyFallback(Catalog $source, Catalog $target)
+    {
+        foreach ($source->getEntries() as $entry) {
+            if ($target->getEntry($entry->getMsgId()) === null) {
+                $target->addEntry(clone($entry));
+            }
+        }
+        return $target;
     }
 
     private function _getData($url)
