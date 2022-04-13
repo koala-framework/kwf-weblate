@@ -2,6 +2,11 @@
 namespace Kwf\Weblate;
 use Psr\Log\LoggerInterface;
 use Kwf\Weblate\Config\ConfigInterface;
+use Sepia\PoParser\Catalog\Catalog;
+use Sepia\PoParser\Catalog\Entry;
+use Sepia\PoParser\Parser;
+use Sepia\PoParser\PoCompiler;
+use Sepia\PoParser\SourceHandler\FileSystem;
 use ZipArchive;
 
 class DownloadTranslations
@@ -74,6 +79,7 @@ class DownloadTranslations
             $kwfWeblate = $composerConfig->extra->{'kwf-weblate'};
             $projectName = strtolower($kwfWeblate->project);
             $componentName = strtolower($kwfWeblate->component);
+            $fallBackLanguage = (isset($kwfWeblate->fallback) ? strtolower($kwfWeblate->fallback) : false);
 
             $trlTempDir = $this->_getTempFolder($projectName);
             if ($this->_checkDownloadTrlFiles($projectName)) {
@@ -95,14 +101,55 @@ class DownloadTranslations
                 }
                 file_put_contents($this->_getLastUpdateFile($this->_getTranslationsTempFolder($projectName, $componentName)), date('Y-m-d H:i:s'));
             }
+
             if (!file_exists(dirname($composerJsonFilePath).'/trl/')) {
                 mkdir(dirname($composerJsonFilePath).'/trl/', 0777, true);//write and read for everyone
             }
+
             foreach (scandir($this->_getTranslationsTempFolder($projectName, $componentName)) as $file) {
                 if (substr($file, 0, 1) === '.') continue;
                 copy($this->_getTranslationsTempFolder($projectName, $componentName).'/'.$file, dirname($composerJsonFilePath).'/trl/'.basename($file));
             }
+
+            if ($fallBackLanguage !== false) {
+                $this->_applyTranslationFallback(dirname($composerJsonFilePath).'/trl/', $fallBackLanguage);
+            }
         }
+    }
+
+    private function _applyTranslationFallback($directory, $language)
+    {
+        $this->_logger->info('Applying fallback language (' . $language . ') to downloaded trl resources.');
+        $originFile = $directory . $language . '.po';
+        if (!file_exists($originFile)) {
+            throw new WeblateException('Could not find fallback language file: ' . $originFile . "\n"
+                . 'Fallback language is set in composer.json/extra.kwf-weblate.fallback');
+        }
+
+        //$originTrl = TrlParser::parseTrlFile($originFile);
+        $origin = Parser::parseFile($originFile);
+
+        foreach (scandir($directory) as $file) {
+            if (substr($file, 0, 1) === '.') continue;
+            if ($file == $language . '.po') continue;
+
+            $path = $directory . $file;
+            $handler = new FileSystem($path);
+            $trl = new Parser($handler);
+            $trl = $this->applyFallback($origin, $trl);
+            $compiler = new PoCompiler();
+            $handler->save($compiler->compile($trl));
+        }
+    }
+
+    private function _applyFallback(Catalog $source, Catalog $target)
+    {
+        foreach ($source->getEntries() as $entry) {
+            if ($target->getEntry($entry->getMsgId()) === null) {
+                $target->addEntry(clone($entry));
+            }
+        }
+        return $target;
     }
 
     private function _getData($url)
