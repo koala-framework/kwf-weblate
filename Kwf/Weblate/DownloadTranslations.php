@@ -79,6 +79,8 @@ class DownloadTranslations
             $kwfWeblate = $composerConfig->extra->{'kwf-weblate'};
             $projectName = strtolower($kwfWeblate->project);
             $componentName = strtolower($kwfWeblate->component);
+            $fileLocation = key_exists("fileLocation", $kwfWeblate) ? strtolower($kwfWeblate->fileLocation) : '/trl/';
+            $sourceFileIsJson = key_exists("sourceFileIsJson", $kwfWeblate);
             $fallBackLanguage = (isset($kwfWeblate->fallback) ? strtolower($kwfWeblate->fallback) : false);
 
             $trlTempDir = $this->_getTempFolder($projectName);
@@ -102,25 +104,35 @@ class DownloadTranslations
                 file_put_contents($this->_getLastUpdateFile($this->_getTranslationsTempFolder($projectName, $componentName)), date('Y-m-d H:i:s'));
             }
 
-            if (!file_exists(dirname($composerJsonFilePath).'/trl/')) {
-                mkdir(dirname($composerJsonFilePath).'/trl/', 0777, true);//write and read for everyone
+            if (!file_exists(dirname($composerJsonFilePath) . $fileLocation)) {
+                mkdir(dirname($composerJsonFilePath) . $fileLocation, 0777, true);//write and read for everyone
             }
 
             foreach (scandir($this->_getTranslationsTempFolder($projectName, $componentName)) as $file) {
                 if (substr($file, 0, 1) === '.') continue;
-                copy($this->_getTranslationsTempFolder($projectName, $componentName).'/'.$file, dirname($composerJsonFilePath).'/trl/'.basename($file));
+                if ($sourceFileIsJson) {
+                    preg_match("/translation.([a-zA-Z-]*).json/", $file, $language);
+                    if (!key_exists(1, $language)) continue;
+                    if (!file_exists(dirname($composerJsonFilePath) . $fileLocation . $language[1])) {
+                        mkdir(dirname($composerJsonFilePath) . $fileLocation . $language[1], 0777, true);
+                    }
+                    copy($this->_getTranslationsTempFolder($projectName, $componentName).'/'.$file, dirname($composerJsonFilePath) . $fileLocation . $language[1] . "/translation.json");
+                } else {
+                    copy($this->_getTranslationsTempFolder($projectName, $componentName).'/'.$file, dirname($composerJsonFilePath) . $fileLocation . basename($file));
+                }
             }
 
             if ($fallBackLanguage !== false) {
-                $this->_applyTranslationFallback(dirname($composerJsonFilePath).'/trl/', $fallBackLanguage);
+                $this->_applyTranslationFallback(dirname($composerJsonFilePath) . $fileLocation, $fallBackLanguage, $sourceFileIsJson);
             }
         }
     }
 
-    private function _applyTranslationFallback($directory, $language)
+    private function _applyTranslationFallback($directory, $language, $sourceFileIsJson)
     {
         $this->_logger->info('Applying fallback language (' . $language . ') to downloaded trl resources.');
-        $originFile = $directory . $language . '.po';
+        if ($sourceFileIsJson) $originFile = $directory . $language . '/translation.json';
+        else $originFile = $directory . $language . '.po';
         if (!file_exists($originFile)) {
             throw new WeblateException('Could not find fallback language file: ' . $originFile . "\n"
                 . 'Fallback language is set in composer.json/extra.kwf-weblate.fallback');
