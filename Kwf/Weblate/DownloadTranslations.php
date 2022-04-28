@@ -79,8 +79,8 @@ class DownloadTranslations
             $kwfWeblate = $composerConfig->extra->{'kwf-weblate'};
             $projectName = strtolower($kwfWeblate->project);
             $componentName = strtolower($kwfWeblate->component);
-            $fileLocation = key_exists("fileLocation", $kwfWeblate) ? strtolower($kwfWeblate->fileLocation) : '/trl/';
-            $sourceFileIsJson = key_exists("sourceFileIsJson", $kwfWeblate);
+            $fileLocation = property_exists($kwfWeblate, "fileLocation") ? strtolower($kwfWeblate->fileLocation) : '/trl/';
+            $sourceFileIsJson = isset($kwfWeblate->sourceFileIsJson);
             $fallBackLanguage = (isset($kwfWeblate->fallback) ? strtolower($kwfWeblate->fallback) : false);
 
             $trlTempDir = $this->_getTempFolder($projectName);
