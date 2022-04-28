@@ -126,7 +126,6 @@ class DownloadTranslations
                 . 'Fallback language is set in composer.json/extra.kwf-weblate.fallback');
         }
 
-        //$originTrl = TrlParser::parseTrlFile($originFile);
         $origin = Parser::parseFile($originFile);
 
         foreach (scandir($directory) as $file) {
@@ -136,7 +135,7 @@ class DownloadTranslations
             $path = $directory . $file;
             $handler = new FileSystem($path);
             $trl = new Parser($handler);
-            $trl = $this->applyFallback($origin, $trl);
+            $trl = $this->_applyFallback($origin, $trl);
             $compiler = new PoCompiler();
             $handler->save($compiler->compile($trl));
         }

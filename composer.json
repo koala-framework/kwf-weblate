@@ -8,7 +8,8 @@
         "composer-plugin-api": "^1.0",
         "symfony/console": "~2.6",
         "psr/log": "~1.0",
-        "ext-zip": "*"
+        "ext-zip": "*",
+        "sepia/po-parser": "^4.2.1"
     },
     "extra": {
         "class": "Kwf\\Weblate\\DownloadPlugin"
