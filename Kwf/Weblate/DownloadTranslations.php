@@ -2,11 +2,7 @@
 namespace Kwf\Weblate;
 use Psr\Log\LoggerInterface;
 use Kwf\Weblate\Config\ConfigInterface;
-use Sepia\PoParser\Catalog\Catalog;
-use Sepia\PoParser\Catalog\Entry;
-use Sepia\PoParser\Parser;
-use Sepia\PoParser\PoCompiler;
-use Sepia\PoParser\SourceHandler\FileSystem;
+use Sepia\PoParser;
 use ZipArchive;
 
 class DownloadTranslations
@@ -138,18 +134,16 @@ class DownloadTranslations
                 . 'Fallback language is set in composer.json/extra.kwf-weblate.fallback');
         }
 
-        $origin = Parser::parseFile($originFile);
+        $origin = PoParser::parseFile($originFile);
 
         foreach (scandir($directory) as $file) {
             if (substr($file, 0, 1) === '.') continue;
             if ($file == $language . '.po') continue;
 
             $path = $directory . $file;
-            $handler = new FileSystem($path);
-            $trl = new Parser($handler);
+            $trl = PoParser::parseFile($path);
             $trl = $this->_applyFallback($origin, $trl);
-            $compiler = new PoCompiler();
-            $handler->save($compiler->compile($trl));
+            $trl->writeFile($path);
         }
     }
 
