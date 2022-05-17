@@ -147,11 +147,11 @@ class DownloadTranslations
         }
     }
 
-    private function _applyFallback(Catalog $source, Catalog $target)
+    private function _applyFallback(PoParser $source, PoParser $target)
     {
-        foreach ($source->getEntries() as $entry) {
-            if ($target->getEntry($entry->getMsgId()) === null) {
-                $target->addEntry(clone($entry));
+        foreach ($source->getEntries() as $msgId => $entry) {
+            if (!isset($target->getEntries()[$msgId])) {
+                $target->setEntry($msgId, $entry);
             }
         }
         return $target;
