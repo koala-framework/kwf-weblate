@@ -114,7 +114,16 @@ class DownloadTranslations
                     }
                     copy($this->_getTranslationsTempFolder($projectName, $componentName).'/'.$file, dirname($composerJsonFilePath) . $fileLocation . $language[1] . "/translation.json");
                 } else {
-                    copy($this->_getTranslationsTempFolder($projectName, $componentName).'/'.$file, dirname($composerJsonFilePath) . $fileLocation . basename($file));
+                    $filenameWithUnderscoreSeparator = str_replace('-', '_', basename($file));
+                    $filenameWithHyphenSeparator = str_replace('_', '-', basename($file));
+
+                    if ($filenameWithHyphenSeparator == $filenameWithUnderscoreSeparator) {
+                        // without separator
+                        copy($this->_getTranslationsTempFolder($projectName, $componentName).'/'.$file, dirname($composerJsonFilePath) . $fileLocation . basename($file));
+                    } else {
+                        copy($this->_getTranslationsTempFolder($projectName, $componentName).'/'.$file, dirname($composerJsonFilePath) . $fileLocation . $filenameWithUnderscoreSeparator);
+                        copy($this->_getTranslationsTempFolder($projectName, $componentName).'/'.$file, dirname($composerJsonFilePath) . $fileLocation . $filenameWithHyphenSeparator);
+                    }
                 }
             }
 
